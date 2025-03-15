@@ -1,4 +1,4 @@
-# Repo to build a LLM powered chatbot using interchanheable LLMs starting with Azure OpenAI 
+# Repo to build a LLM powered chatbot using interchangeable LLMs starting with Azure OpenAI 
 
 ## Stack
 

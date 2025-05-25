@@ -4,12 +4,9 @@ A modern chat application powered by Azure OpenAI, allowing users to interact wi
 
 ## Features
 
-- Chat with Azure OpenAI models (GPT-4, GPT-3.5-turbo)
-- Adjustable parameters (temperature, max tokens)
+- Chat with Azure OpenAI models
+- Clean and responsive interface
 - Code block rendering
-- Dark mode support
-- Responsive design for mobile and desktop
-- Token usage tracking
 
 ## Tech Stack
 
@@ -44,17 +41,16 @@ A modern chat application powered by Azure OpenAI, allowing users to interact wi
    pip install -e .
    ```
 
-3. Create a `.env` file in the root directory with your Azure OpenAI API key:
+3. Create a `.env` file in the root directory with the required settings:
    ```
    LLM_API_KEY=your_api_key_here
    LLM_API_ENDPOINT=https://your-azure-openai-endpoint.openai.azure.com
-   LLM_MODEL=gpt-4
    SECRET_KEY=your_secret_key_here
    ```
 
-4. Run the application:
+4. Run the application with Uvicorn:
    ```bash
-   python main.py
+   uvicorn app.main:app --reload
    ```
 
 5. Open your browser and navigate to `http://localhost:8000`
@@ -64,7 +60,6 @@ A modern chat application powered by Azure OpenAI, allowing users to interact wi
 - `GET /`: Home page with chat interface
 - `GET /health`: Health check endpoint
 - `POST /api/chat`: Generate a chat response
-- `POST /api/chat/system`: Generate a response with a system message
 
 ## Docker Deployment
 

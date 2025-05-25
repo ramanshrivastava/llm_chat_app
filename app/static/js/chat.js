@@ -5,18 +5,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.getElementById('chatMessages');
     const userInput = document.getElementById('userInput');
     const sendButton = document.getElementById('sendButton');
-    const modelSelect = document.getElementById('modelSelect');
-    const temperatureRange = document.getElementById('temperatureRange');
-    const temperatureValue = document.getElementById('temperatureValue');
-    const maxTokensInput = document.getElementById('maxTokensInput');
+    // Simplified UI does not include advanced settings
     
     // Chat history
     let chatHistory = [];
     
-    // Update temperature value display
-    temperatureRange.addEventListener('input', function() {
-        temperatureValue.textContent = this.value;
-    });
     
     // Handle sending messages
     function sendMessage() {
@@ -36,23 +29,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // Scroll to bottom
         scrollToBottom();
         
-        // Get settings
-        const model = modelSelect.value;
-        const temperature = parseFloat(temperatureRange.value);
-        const maxTokens = maxTokensInput.value ? parseInt(maxTokensInput.value) : null;
-        
         // Add to chat history
         chatHistory.push({
             role: 'user',
             content: message
         });
-        
+
         // Prepare request
         const requestBody = {
             messages: chatHistory,
-            model: model || null,
-            temperature: temperature,
-            max_tokens: maxTokens,
             stream: false
         };
         
@@ -146,26 +131,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
     
-    // Clear chat
-    function clearChat() {
-        // Keep only the welcome message
-        while (chatMessages.children.length > 1) {
-            chatMessages.removeChild(chatMessages.lastChild);
-        }
-        chatHistory = [];
-    }
-    
-    // Toggle dark mode
-    function toggleDarkMode() {
-        document.body.classList.toggle('dark-mode');
-        localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-    }
-    
-    // Check for saved dark mode preference
-    if (localStorage.getItem('darkMode') === 'true') {
-        document.body.classList.add('dark-mode');
-    }
-    
     // Event listeners
     sendButton.addEventListener('click', sendMessage);
     userInput.addEventListener('keydown', function(event) {
@@ -174,20 +139,4 @@ document.addEventListener('DOMContentLoaded', function() {
             sendMessage();
         }
     });
-    
-    // Add theme toggle button
-    const themeToggle = document.createElement('button');
-    themeToggle.className = 'theme-toggle';
-    themeToggle.innerHTML = '🌓';
-    themeToggle.title = 'Toggle Dark Mode';
-    themeToggle.addEventListener('click', toggleDarkMode);
-    document.body.appendChild(themeToggle);
-    
-    // Add clear chat button to settings panel
-    const settingsPanel = document.querySelector('.settings-panel');
-    const clearButton = document.createElement('button');
-    clearButton.className = 'btn btn-outline-danger mt-3';
-    clearButton.textContent = 'Clear Chat';
-    clearButton.addEventListener('click', clearChat);
-    settingsPanel.appendChild(clearButton);
 }); 

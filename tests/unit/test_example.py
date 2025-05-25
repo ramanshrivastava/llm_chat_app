@@ -1,4 +1,10 @@
 import pytest
+import sys
+from pathlib import Path
+
+# Ensure the 'app' package is importable when tests are run directly
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from app.schemas.chat import Message, ChatRequest, ChatResponse
 
 def test_message_schema():

@@ -1,10 +1,10 @@
 # LLM Chat App
 
-A modern chat application powered by Azure OpenAI, allowing users to interact with various LLM models through a clean and intuitive interface.
+A modern chat application powered by multiple providers (OpenAI, Anthropic, and Google's Gemini), allowing users to interact with various LLM models through a clean and intuitive interface.
 
 ## Features
 
-- Chat with Azure OpenAI models (GPT-4, GPT-3.5-turbo)
+- Chat with OpenAI, Anthropic, or Gemini models using a unified API
 - Adjustable parameters (temperature, max tokens)
 - Code block rendering
 - Dark mode support
@@ -15,7 +15,7 @@ A modern chat application powered by Azure OpenAI, allowing users to interact wi
 
 - **Backend**: FastAPI, Python 3.12.2
 - **Frontend**: HTML, CSS, JavaScript
-- **LLM Integration**: Azure OpenAI
+- **LLM Integration**: OpenAI-compatible providers (OpenAI, Anthropic, Gemini)
 - **Dependency Management**: uv
 - **Containerization**: Docker
 - **Deployment**: Azure Kubernetes Service (AKS)
@@ -27,7 +27,7 @@ A modern chat application powered by Azure OpenAI, allowing users to interact wi
 ### Prerequisites
 
 - Python 3.12.2
-- Azure OpenAI API key
+- API key for your chosen LLM provider
 
 ### Installation
 
@@ -44,11 +44,12 @@ A modern chat application powered by Azure OpenAI, allowing users to interact wi
    pip install -e .
    ```
 
-3. Create a `.env` file in the root directory with your Azure OpenAI API key:
+3. Create a `.env` file in the root directory with your LLM provider settings:
    ```
    LLM_API_KEY=your_api_key_here
-   LLM_API_ENDPOINT=https://your-azure-openai-endpoint.openai.azure.com
-   LLM_MODEL=gpt-4
+    LLM_API_ENDPOINT=https://api.openai.com/v1
+    LLM_MODEL=gpt-4
+    LLM_PROVIDER=openai
    SECRET_KEY=your_secret_key_here
    ```
 
@@ -92,7 +93,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgements
 
-- Azure OpenAI for providing the LLM capabilities
+- OpenAI, Anthropic and Google for providing the LLM capabilities
 - FastAPI for the efficient API framework
 - The open-source community for various libraries and tools used in this project
 

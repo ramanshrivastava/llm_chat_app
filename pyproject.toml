@@ -8,6 +8,8 @@ dependencies = [
     "fastapi>=0.115.11",
     "httpx>=0.28.1",
     "openai>=1.66.3",
+    "anthropic>=0.25.0",
+    "google-generativeai>=0.5.4",
     "python-dotenv>=1.0.1",
     "uvicorn>=0.34.0",
 ]

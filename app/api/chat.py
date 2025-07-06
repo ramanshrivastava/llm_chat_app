@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.schemas.chat import ChatRequest, ChatResponse, Message
-from app.services.llm_service import llm_service
+from app.agents.langgraph_agent import langgraph_agent
 import logging
 
 router = APIRouter()
@@ -18,7 +18,7 @@ async def chat(request: ChatRequest):
     - **stream**: (Optional) Whether to stream the response
     """
     try:
-        response = await llm_service.generate_response(request)
+        response = await langgraph_agent.invoke(request)
         return response
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
@@ -54,7 +54,7 @@ async def chat_with_system(
             max_tokens=max_tokens
         )
         
-        response = await llm_service.generate_response(request)
+        response = await langgraph_agent.invoke(request)
         return response
     except Exception as e:
         logger.error(f"Error in chat_with_system endpoint: {str(e)}")

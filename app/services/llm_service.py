@@ -1,5 +1,5 @@
 import openai
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
 import logging
@@ -7,15 +7,35 @@ import logging
 logger = logging.getLogger(__name__)
 
 class LLMService:
-    """Service for interacting with LLM APIs."""
-    
-    def __init__(self):
-        """Initialize the LLM service."""
-        self.client = openai.OpenAI(
-            api_key=settings.LLM_API_KEY,
-            base_url=settings.LLM_API_ENDPOINT
-        )
+    """Service for interacting with various LLM APIs with a unified interface."""
+
+    def __init__(self) -> None:
+        """Initialize the LLM service based on the configured provider."""
+        self.provider = settings.LLM_PROVIDER.lower()
         self.model = settings.LLM_MODEL
+
+        if self.provider == "openai":
+            self.client = openai.OpenAI(
+                api_key=settings.LLM_API_KEY,
+                base_url=settings.LLM_API_ENDPOINT,
+            )
+        elif self.provider == "anthropic":
+            try:
+                import anthropic
+            except Exception as e:  # pragma: no cover - optional dependency
+                raise ImportError("anthropic package is required for Anthropic provider") from e
+
+            self.client = anthropic.Anthropic(api_key=settings.LLM_API_KEY)
+        elif self.provider == "gemini":
+            try:
+                import google.generativeai as genai
+            except Exception as e:  # pragma: no cover - optional dependency
+                raise ImportError("google-generativeai package is required for Gemini provider") from e
+
+            genai.configure(api_key=settings.LLM_API_KEY)
+            self.client = genai.GenerativeModel(self.model)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {self.provider}")
     
     def format_messages(self, messages: List[Message]) -> List[Dict[str, str]]:
         """Format messages for the OpenAI API."""
@@ -26,35 +46,52 @@ class LLMService:
         try:
             # Use the model from the request if provided, otherwise use the default
             model = request.model or self.model
-            
+
             # Format the messages for the API
             formatted_messages = self.format_messages(request.messages)
-            
-            # Call the OpenAI API
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=formatted_messages,
-                temperature=request.temperature,
-                max_tokens=request.max_tokens,
-                stream=request.stream
-            )
-            
-            # Extract the response message
-            assistant_message = Message(
-                role="assistant",
-                content=response.choices[0].message.content
-            )
-            
-            # Create the response object
-            return ChatResponse(
-                message=assistant_message,
-                model=model,
-                usage={
+
+            if self.provider == "openai":
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=formatted_messages,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    stream=request.stream,
+                )
+                content = response.choices[0].message.content
+                usage = {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
+                    "total_tokens": response.usage.total_tokens,
                 }
-            )
+            elif self.provider == "anthropic":
+                response = self.client.messages.create(
+                    model=model,
+                    messages=formatted_messages,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens or 1024,
+                    stream=request.stream,
+                )
+                content = "".join(
+                    block.text for block in getattr(response, "content", [])
+                )
+                usage = {}
+            else:  # gemini
+                conversation = "\n".join(m.content for m in request.messages)
+                result = self.client.generate_content(
+                    conversation,
+                    generation_config={
+                        "temperature": request.temperature,
+                        "max_output_tokens": request.max_tokens,
+                    },
+                    stream=request.stream,
+                )
+                content = getattr(result, "text", str(result))
+                usage = {}
+
+            assistant_message = Message(role="assistant", content=content)
+
+            return ChatResponse(message=assistant_message, model=model, usage=usage)
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             raise

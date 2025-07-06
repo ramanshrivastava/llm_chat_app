@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_API_ENDPOINT: str = os.getenv("LLM_API_ENDPOINT", "https://api.openai.com/v1")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai")
     
     # Application Settings
     APP_ENV: str = os.getenv("APP_ENV", "development")

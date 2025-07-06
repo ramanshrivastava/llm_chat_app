@@ -60,6 +60,16 @@ A modern chat application powered by multiple providers (OpenAI, Anthropic, and 
 
 5. Open your browser and navigate to `http://localhost:8000`
 
+## Running Tests
+
+Install the development dependencies before running the tests. The `dev` extras
+include `pytest` and `pytest-cov`:
+
+```bash
+pip install -e .[dev]
+pytest
+```
+
 ## API Endpoints
 
 - `GET /`: Home page with chat interface

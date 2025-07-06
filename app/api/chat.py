@@ -1,8 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from app.schemas.chat import ChatRequest, ChatResponse, Message
 from app.services.llm_service import llm_service
 import logging
-from typing import List
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

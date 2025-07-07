@@ -89,6 +89,50 @@ pytest
    docker run -p 8000:8000 --env-file .env llm-chat-app
    ```
 
+## Deployment to AKS with Kustomize
+
+Kubernetes manifests are provided in the `k8s/` directory. The `base` folder
+contains common resources and `overlays/production` contains production
+configuration such as replica count and image tag.
+
+Deploy the application with:
+
+```bash
+kubectl apply -k k8s/overlays/production
+```
+
+Create a `llm-chat-app-secrets` secret in the namespace with your API keys
+before applying the manifests.
+
+## Provisioning AKS with Pulumi
+
+The `infra/pulumi` folder holds a Pulumi program for creating the AKS cluster.
+Install the requirements and run `pulumi up`:
+
+```bash
+cd infra/pulumi
+pip install -r requirements.txt
+pulumi up
+```
+
+The program provisions a resource group and an AKS cluster and exports the
+kubeconfig for cluster access.
+
+## GitOps with Argo CD
+
+Once the cluster is running and Argo CD is installed, create an application that
+points to the Kustomize overlay:
+
+```bash
+argocd app create llm-chat-app \
+  --repo https://github.com/yourusername/llm_chat_app.git \
+  --path k8s/overlays/production \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace default
+
+argocd app sync llm-chat-app
+```
+
 ## Contributing
 
 1. Fork the repository

@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-chat-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-chat-app
+  template:
+    metadata:
+      labels:
+        app: llm-chat-app
+    spec:
+      containers:
+        - name: llm-chat-app
+          image: ghcr.io/yourusername/llm_chat_app:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LLM_PROVIDER
+              value: "openai"
+            - name: LLM_MODEL
+              value: "gpt-4"
+          envFrom:
+            - secretRef:
+                name: llm-chat-app-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

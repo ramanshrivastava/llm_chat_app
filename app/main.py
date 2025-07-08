@@ -7,6 +7,7 @@ import logging
 import uvicorn
 from app.core.config import settings
 from app.api import chat
+from app.core.tracing import setup_tracing
 
 # Configure logging
 logging.basicConfig(
@@ -21,6 +22,9 @@ app = FastAPI(
     description="A chat application powered by Azure OpenAI",
     version="0.1.0",
 )
+
+# Initialize OpenTelemetry tracing
+setup_tracing(app)
 
 # Add CORS middleware
 app.add_middleware(

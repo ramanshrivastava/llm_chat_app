@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
 import logging
+from opentelemetry import trace
 
 logger = logging.getLogger(__name__)
 
@@ -40,58 +41,63 @@ class LLMService:
     def format_messages(self, messages: List[Message]) -> List[Dict[str, str]]:
         """Format messages for the OpenAI API."""
         return [{"role": msg.role, "content": msg.content} for msg in messages]
-    
+
     async def generate_response(self, request: ChatRequest) -> ChatResponse:
         """Generate a response from the LLM."""
+        tracer = trace.get_tracer(__name__)
         try:
-            # Use the model from the request if provided, otherwise use the default
-            model = request.model or self.model
+            with tracer.start_as_current_span("llm.generate_response") as span:
+                span.set_attribute("llm.provider", self.provider)
+                span.set_attribute("llm.model", request.model or self.model)
 
-            # Format the messages for the API
-            formatted_messages = self.format_messages(request.messages)
+                # Use the model from the request if provided, otherwise use the default
+                model = request.model or self.model
 
-            if self.provider == "openai":
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=formatted_messages,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    stream=request.stream,
-                )
-                content = response.choices[0].message.content
-                usage = {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-            elif self.provider == "anthropic":
-                response = self.client.messages.create(
-                    model=model,
-                    messages=formatted_messages,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens or 1024,
-                    stream=request.stream,
-                )
-                content = "".join(
-                    block.text for block in getattr(response, "content", [])
-                )
-                usage = {}
-            else:  # gemini
-                conversation = "\n".join(m.content for m in request.messages)
-                result = self.client.generate_content(
-                    conversation,
-                    generation_config={
-                        "temperature": request.temperature,
-                        "max_output_tokens": request.max_tokens,
-                    },
-                    stream=request.stream,
-                )
-                content = getattr(result, "text", str(result))
-                usage = {}
+                # Format the messages for the API
+                formatted_messages = self.format_messages(request.messages)
 
-            assistant_message = Message(role="assistant", content=content)
+                if self.provider == "openai":
+                    response = self.client.chat.completions.create(
+                        model=model,
+                        messages=formatted_messages,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens,
+                        stream=request.stream,
+                    )
+                    content = response.choices[0].message.content
+                    usage = {
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                elif self.provider == "anthropic":
+                    response = self.client.messages.create(
+                        model=model,
+                        messages=formatted_messages,
+                        temperature=request.temperature,
+                        max_tokens=request.max_tokens or 1024,
+                        stream=request.stream,
+                    )
+                    content = "".join(
+                        block.text for block in getattr(response, "content", [])
+                    )
+                    usage = {}
+                else:  # gemini
+                    conversation = "\n".join(m.content for m in request.messages)
+                    result = self.client.generate_content(
+                        conversation,
+                        generation_config={
+                            "temperature": request.temperature,
+                            "max_output_tokens": request.max_tokens,
+                        },
+                        stream=request.stream,
+                    )
+                    content = getattr(result, "text", str(result))
+                    usage = {}
 
-            return ChatResponse(message=assistant_message, model=model, usage=usage)
+                assistant_message = Message(role="assistant", content=content)
+
+                return ChatResponse(message=assistant_message, model=model, usage=usage)
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             raise

@@ -77,6 +77,17 @@ pytest
 - `POST /api/chat`: Generate a chat response
 - `POST /api/chat/system`: Generate a response with a system message
 
+## Tracing and Latency Monitoring
+
+OpenTelemetry tracing captures latency for API requests and LLM calls. Traces are printed to the console by default. Install the tracing packages and start the app normally:
+
+```bash
+pip install opentelemetry-api opentelemetry-sdk \
+  opentelemetry-exporter-otlp opentelemetry-instrumentation-fastapi
+```
+
+Set `OTEL_EXPORTER_OTLP_ENDPOINT` to send traces to a collector.
+
 ## Docker Deployment
 
 1. Build the Docker image:

@@ -1,0 +1,7 @@
+resources:
+  - ../../base
+images:
+  - name: ghcr.io/yourusername/llm_chat_app
+    newTag: latest
+patchesStrategicMerge:
+  - deployment-patch.yaml

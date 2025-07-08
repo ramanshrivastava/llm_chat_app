@@ -36,3 +36,7 @@ markers = [
     "integration: marks tests as integration tests",
     "slow: marks tests as slow running",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]

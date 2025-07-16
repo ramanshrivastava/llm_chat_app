@@ -1,5 +1,5 @@
 import openai
-from typing import List, Dict, Any
+from typing import List, Dict, Any, AsyncGenerator
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
 import logging
@@ -95,6 +95,52 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             raise
+
+    async def stream_response(self, request: ChatRequest) -> AsyncGenerator[str, None]:
+        """Stream a response from the LLM as it is generated."""
+        # Use the model from the request if provided, otherwise use the default
+        model = request.model or self.model
+
+        formatted_messages = self.format_messages(request.messages)
+
+        if self.provider == "openai":
+            stream = self.client.chat.completions.create(
+                model=model,
+                messages=formatted_messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                stream=True,
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+        elif self.provider == "anthropic":
+            response = self.client.messages.create(
+                model=model,
+                messages=formatted_messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens or 1024,
+                stream=True,
+            )
+            for block in getattr(response, "content", []):
+                if getattr(block, "text", ""):
+                    yield block.text
+        else:  # gemini
+            conversation = "\n".join(m.content for m in request.messages)
+            result = self.client.generate_content(
+                conversation,
+                generation_config={
+                    "temperature": request.temperature,
+                    "max_output_tokens": request.max_tokens,
+                },
+                stream=True,
+            )
+            for chunk in getattr(result, "iter", lambda: [])():
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield text
+
 
 # Create a global instance of the LLM service
 llm_service = LLMService() 

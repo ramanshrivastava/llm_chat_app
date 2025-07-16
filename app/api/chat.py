@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from app.schemas.chat import ChatRequest, ChatResponse, Message
 from app.agents.langgraph_agent import langgraph_agent
+from app.services.llm_service import llm_service
 import logging
 
 router = APIRouter()
@@ -58,4 +60,15 @@ async def chat_with_system(
         return response
     except Exception as e:
         logger.error(f"Error in chat_with_system endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
+
+
+@router.post("/chat/stream", summary="Stream a chat response")
+async def chat_stream(request: ChatRequest):
+    """Stream tokens from the LLM as plain text."""
+
+    async def generator():
+        async for chunk in llm_service.stream_response(request):
+            yield chunk
+
+    return StreamingResponse(generator(), media_type="text/plain")

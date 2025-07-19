@@ -53,11 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
             model: model || null,
             temperature: temperature,
             max_tokens: maxTokens,
-            stream: false
+            stream: true
         };
-        
-        // Send request to API
-        fetch('/api/chat', {
+
+        // Send request to API with streaming response
+        fetch('/api/chat/stream', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -65,41 +65,76 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify(requestBody)
         })
         .then(response => {
-            if (!response.ok) {
+            if (!response.ok || !response.body) {
                 throw new Error('API request failed');
             }
-            return response.json();
-        })
-        .then(data => {
-            // Remove loading indicator
-            chatMessages.removeChild(loadingDiv);
-            
-            // Add assistant message to chat
-            addMessage('assistant', data.message.content);
-            
-            // Add to chat history
-            chatHistory.push({
-                role: 'assistant',
-                content: data.message.content
-            });
-            
-            // Display token usage if available
-            if (data.usage) {
-                console.log('Token usage:', data.usage);
+
+            // Create assistant message container
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'message assistant-message';
+            chatMessages.appendChild(assistantDiv);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let assistantMessage = '';
+            let buffer = '';
+
+            function processBuffer() {
+                const parts = buffer.split('\n\n');
+                buffer = parts.pop();
+                for (const part of parts) {
+                    const line = part.trim();
+                    if (!line.startsWith('data:')) continue;
+                    const dataStr = line.slice(5).trim();
+                    if (dataStr === '[DONE]') {
+                        chatMessages.removeChild(loadingDiv);
+                        chatHistory.push({ role: 'assistant', content: assistantMessage });
+                        reader.cancel();
+                        return;
+                    }
+                    try {
+                        const json = JSON.parse(dataStr);
+                        const delta = json.choices?.[0]?.delta?.content;
+                        if (delta) {
+                            assistantMessage += delta;
+                            assistantDiv.textContent = assistantMessage;
+                            scrollToBottom();
+                        }
+                    } catch (err) {
+                        console.error('Invalid SSE data', err, dataStr);
+                    }
+                }
             }
+
+            function read() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        chatMessages.removeChild(loadingDiv);
+                        if (assistantMessage) {
+                            chatHistory.push({ role: 'assistant', content: assistantMessage });
+                        }
+                        return;
+                    }
+                    buffer += decoder.decode(value, { stream: true });
+                    processBuffer();
+                    read();
+                });
+            }
+
+            read();
         })
         .catch(error => {
             console.error('Error:', error);
-            
+
             // Remove loading indicator
             chatMessages.removeChild(loadingDiv);
-            
+
             // Add error message
             const errorDiv = document.createElement('div');
             errorDiv.className = 'message system-message';
             errorDiv.textContent = 'An error occurred while processing your request. Please try again.';
             chatMessages.appendChild(errorDiv);
-            
+
             // Scroll to bottom
             scrollToBottom();
         });

@@ -10,6 +10,7 @@ A modern chat application powered by multiple providers (OpenAI, Anthropic, and 
 - Dark mode support
 - Responsive design for mobile and desktop
 - Token usage tracking
+- OpenAI-style streaming responses via SSE
 
 ## Tech Stack
 
@@ -76,6 +77,7 @@ pytest
 - `GET /health`: Health check endpoint
 - `POST /api/chat`: Generate a chat response
 - `POST /api/chat/system`: Generate a response with a system message
+- `POST /api/chat/stream`: Stream a response using SSE
 
 ## Docker Deployment
 

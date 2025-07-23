@@ -1,18 +1,22 @@
 import openai
-from typing import List, Dict, Any, AsyncGenerator
+import logging
+from dataclasses import dataclass, field
+from typing import List, Dict, AsyncGenerator
+
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
-import logging
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class LLMService:
     """Service for interacting with various LLM APIs with a unified interface."""
 
-    def __init__(self) -> None:
-        """Initialize the LLM service based on the configured provider."""
-        self.provider = settings.LLM_PROVIDER.lower()
-        self.model = settings.LLM_MODEL
+    provider: str = field(default_factory=lambda: settings.LLM_PROVIDER.lower())
+    model: str = field(default_factory=lambda: settings.LLM_MODEL)
+
+    def __post_init__(self) -> None:
+        """Initialize the LLM client based on the configured provider."""
 
         if self.provider == "openai":
             self.client = openai.OpenAI(

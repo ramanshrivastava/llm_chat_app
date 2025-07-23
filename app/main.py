@@ -1,54 +1,64 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from app.core.config import settings
+from app.api import chat
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import uvicorn
-from app.core.config import settings
-from app.api import chat
+from dataclasses import dataclass
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
-# Create the FastAPI application
-app = FastAPI(
-    title="LLM Chat App",
-    description="A chat application powered by Azure OpenAI",
-    version="0.1.0",
-)
+@dataclass
+class ChatApp:
+    """Encapsulates FastAPI application setup."""
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    def __post_init__(self) -> None:
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(
+            level=getattr(logging, settings.LOG_LEVEL),
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+        self.app = FastAPI(
+            title="LLM Chat App",
+            description="A chat application powered by Azure OpenAI",
+            version="0.1.0",
+        )
+        self._configure_middlewares()
+        self._mount_static()
+        self._templates = Jinja2Templates(directory="app/templates")
+        self.app.include_router(chat.router, prefix="/api", tags=["chat"])
+        self._add_routes()
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+    def _configure_middlewares(self) -> None:
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
-# Set up templates
-templates = Jinja2Templates(directory="app/templates")
+    def _mount_static(self) -> None:
+        self.app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Include API routers
-app.include_router(chat.router, prefix="/api", tags=["chat"])
+    def _add_routes(self) -> None:
+        @self.app.get("/", response_class=HTMLResponse)
+        async def root(request: Request):
+            return self._templates.TemplateResponse("index.html", {"request": request})
 
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    """Render the home page."""
-    return templates.TemplateResponse("index.html", {"request": request})
+        @self.app.get("/health")
+        async def health_check():
+            return {"status": "healthy"}
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+
+def create_app() -> FastAPI:
+    return ChatApp().app
+
+
+app = create_app()
 
 if __name__ == "__main__":
     logger.info(f"Starting server on {settings.HOST}:{settings.PORT}")
@@ -57,4 +67,4 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-    ) 
+    )

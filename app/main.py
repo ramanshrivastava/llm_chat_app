@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Create the FastAPI application
 app = FastAPI(
     title="LLM Chat App",
-    description="A chat application powered by Azure OpenAI",
+    description="A chat application powered by OpenAI, Anthropic, and Gemini",
     version="0.1.0",
 )
 

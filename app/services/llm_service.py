@@ -19,6 +19,13 @@ class LLMService:
                 api_key=settings.LLM_API_KEY,
                 base_url=settings.LLM_API_ENDPOINT,
             )
+        elif self.provider == "azure":
+            self.client = openai.AzureOpenAI(
+                api_key=settings.LLM_API_KEY,
+                azure_endpoint=settings.LLM_API_ENDPOINT,
+                azure_deployment=settings.LLM_DEPLOYMENT,
+                api_version=settings.LLM_API_VERSION,
+            )
         elif self.provider == "anthropic":
             try:
                 import anthropic

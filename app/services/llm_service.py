@@ -1,8 +1,11 @@
 import openai
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, AsyncGenerator
+import logging
+
+from starlette.concurrency import run_in_threadpool
+
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +18,7 @@ class LLMService:
         self.model = settings.LLM_MODEL
 
         if self.provider == "openai":
-            self.client = openai.OpenAI(
+            self.client = openai.AsyncOpenAI(
                 api_key=settings.LLM_API_KEY,
                 base_url=settings.LLM_API_ENDPOINT,
             )
@@ -23,9 +26,11 @@ class LLMService:
             try:
                 import anthropic
             except Exception as e:  # pragma: no cover - optional dependency
-                raise ImportError("anthropic package is required for Anthropic provider") from e
+                raise ImportError(
+                    "anthropic package is required for Anthropic provider"
+                ) from e
 
-            self.client = anthropic.Anthropic(api_key=settings.LLM_API_KEY)
+            self.client = anthropic.AsyncAnthropic(api_key=settings.LLM_API_KEY)
         elif self.provider == "gemini":
             try:
                 import google.generativeai as genai
@@ -51,7 +56,7 @@ class LLMService:
             formatted_messages = self.format_messages(request.messages)
 
             if self.provider == "openai":
-                response = self.client.chat.completions.create(
+                response = await self.client.chat.completions.create(
                     model=model,
                     messages=formatted_messages,
                     temperature=request.temperature,
@@ -65,7 +70,7 @@ class LLMService:
                     "total_tokens": response.usage.total_tokens,
                 }
             elif self.provider == "anthropic":
-                response = self.client.messages.create(
+                response = await self.client.messages.create(
                     model=model,
                     messages=formatted_messages,
                     temperature=request.temperature,
@@ -78,7 +83,8 @@ class LLMService:
                 usage = {}
             else:  # gemini
                 conversation = "\n".join(m.content for m in request.messages)
-                result = self.client.generate_content(
+                result = await run_in_threadpool(
+                    self.client.generate_content,
                     conversation,
                     generation_config={
                         "temperature": request.temperature,
@@ -104,42 +110,47 @@ class LLMService:
         formatted_messages = self.format_messages(request.messages)
 
         if self.provider == "openai":
-            stream = self.client.chat.completions.create(
+            stream = await self.client.chat.completions.create(
                 model=model,
                 messages=formatted_messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
                 stream=True,
             )
-            for chunk in stream:
+            async for chunk in stream:
                 delta = chunk.choices[0].delta.content
                 if delta:
                     yield delta
         elif self.provider == "anthropic":
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=model,
                 messages=formatted_messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens or 1024,
                 stream=True,
             )
-            for block in getattr(response, "content", []):
+            async for block in getattr(response, "content", []):
                 if getattr(block, "text", ""):
                     yield block.text
         else:  # gemini
             conversation = "\n".join(m.content for m in request.messages)
-            result = self.client.generate_content(
-                conversation,
-                generation_config={
-                    "temperature": request.temperature,
-                    "max_output_tokens": request.max_tokens,
-                },
-                stream=True,
-            )
-            for chunk in getattr(result, "iter", lambda: [])():
-                text = getattr(chunk, "text", None)
-                if text:
-                    yield text
+            def _stream() -> list[str]:
+                result = self.client.generate_content(
+                    conversation,
+                    generation_config={
+                        "temperature": request.temperature,
+                        "max_output_tokens": request.max_tokens,
+                    },
+                    stream=True,
+                )
+                return [
+                    chunk.text
+                    for chunk in getattr(result, "iter", lambda: [])()
+                    if getattr(chunk, "text", None)
+                ]
+
+            for text in await run_in_threadpool(_stream):
+                yield text
 
 
 # Create a global instance of the LLM service

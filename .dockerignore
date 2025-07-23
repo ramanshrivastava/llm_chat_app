@@ -1,0 +1,12 @@
+# Ignore Python cache and logs
+__pycache__/
+*.py[cod]
+*.log
+
+# Ignore VCS
+.git
+
+# Ignore test data and configs
+tests/
+.env
+*.md

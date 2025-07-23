@@ -1,4 +1,3 @@
-import pytest
 from app.schemas.chat import Message, ChatRequest, ChatResponse
 
 def test_message_schema():

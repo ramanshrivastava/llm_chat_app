@@ -11,8 +11,8 @@ class DummyAgent:
 agent_stub.langgraph_agent = DummyAgent()
 sys.modules.setdefault("app.agents.langgraph_agent", agent_stub)
 
-from app.main import app
-from app.schemas.chat import Message, ChatResponse
+from app.main import app  # noqa: E402
+from app.schemas.chat import Message, ChatResponse  # noqa: E402
 
 client = TestClient(app)
 

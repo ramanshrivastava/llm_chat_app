@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     PORT: int = int(os.getenv("PORT", "8000"))
     HOST: str = os.getenv("HOST", "0.0.0.0")
+
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")

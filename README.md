@@ -56,7 +56,7 @@ A modern chat application powered by multiple providers (OpenAI, Anthropic, and 
 
 4. Run the application:
    ```bash
-   python main.py
+   python -m app.main
    ```
 
 5. Open your browser and navigate to `http://localhost:8000`

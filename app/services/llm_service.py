@@ -1,7 +1,8 @@
-import openai
+import asyncio
 import logging
+import openai
 from dataclasses import dataclass, field
-from typing import List, Dict, AsyncGenerator
+from typing import AsyncGenerator, Dict, List
 
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
@@ -19,7 +20,7 @@ class LLMService:
         """Initialize the LLM client based on the configured provider."""
 
         if self.provider == "openai":
-            self.client = openai.OpenAI(
+            self.client = openai.AsyncOpenAI(
                 api_key=settings.LLM_API_KEY,
                 base_url=settings.LLM_API_ENDPOINT,
             )
@@ -29,7 +30,7 @@ class LLMService:
             except Exception as e:  # pragma: no cover - optional dependency
                 raise ImportError("anthropic package is required for Anthropic provider") from e
 
-            self.client = anthropic.Anthropic(api_key=settings.LLM_API_KEY)
+            self.client = anthropic.AsyncAnthropic(api_key=settings.LLM_API_KEY)
         elif self.provider == "gemini":
             try:
                 import google.generativeai as genai
@@ -55,7 +56,7 @@ class LLMService:
             formatted_messages = self.format_messages(request.messages)
 
             if self.provider == "openai":
-                response = self.client.chat.completions.create(
+                response = await self.client.chat.completions.create(
                     model=model,
                     messages=formatted_messages,
                     temperature=request.temperature,
@@ -69,7 +70,7 @@ class LLMService:
                     "total_tokens": response.usage.total_tokens,
                 }
             elif self.provider == "anthropic":
-                response = self.client.messages.create(
+                response = await self.client.messages.create(
                     model=model,
                     messages=formatted_messages,
                     temperature=request.temperature,
@@ -82,14 +83,25 @@ class LLMService:
                 usage = {}
             else:  # gemini
                 conversation = "\n".join(m.content for m in request.messages)
-                result = self.client.generate_content(
-                    conversation,
-                    generation_config={
-                        "temperature": request.temperature,
-                        "max_output_tokens": request.max_tokens,
-                    },
-                    stream=request.stream,
-                )
+                if hasattr(self.client, "generate_content_async"):
+                    result = await self.client.generate_content_async(
+                        conversation,
+                        generation_config={
+                            "temperature": request.temperature,
+                            "max_output_tokens": request.max_tokens,
+                        },
+                        stream=request.stream,
+                    )
+                else:
+                    result = await asyncio.to_thread(
+                        self.client.generate_content,
+                        conversation,
+                        generation_config={
+                            "temperature": request.temperature,
+                            "max_output_tokens": request.max_tokens,
+                        },
+                        stream=request.stream,
+                    )
                 content = getattr(result, "text", str(result))
                 usage = {}
 
@@ -108,42 +120,57 @@ class LLMService:
         formatted_messages = self.format_messages(request.messages)
 
         if self.provider == "openai":
-            stream = self.client.chat.completions.create(
+            stream = await self.client.chat.completions.create(
                 model=model,
                 messages=formatted_messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
                 stream=True,
             )
-            for chunk in stream:
+            async for chunk in stream:
                 delta = chunk.choices[0].delta.content
                 if delta:
                     yield delta
         elif self.provider == "anthropic":
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=model,
                 messages=formatted_messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens or 1024,
                 stream=True,
             )
-            for block in getattr(response, "content", []):
+            async for block in response:
                 if getattr(block, "text", ""):
                     yield block.text
         else:  # gemini
             conversation = "\n".join(m.content for m in request.messages)
-            result = self.client.generate_content(
-                conversation,
-                generation_config={
-                    "temperature": request.temperature,
-                    "max_output_tokens": request.max_tokens,
-                },
-                stream=True,
-            )
-            for chunk in getattr(result, "iter", lambda: [])():
-                text = getattr(chunk, "text", None)
-                if text:
-                    yield text
+            if hasattr(self.client, "generate_content_async"):
+                result = await self.client.generate_content_async(
+                    conversation,
+                    generation_config={
+                        "temperature": request.temperature,
+                        "max_output_tokens": request.max_tokens,
+                    },
+                    stream=True,
+                )
+                async for chunk in result:
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        yield text
+            else:
+                result = await asyncio.to_thread(
+                    self.client.generate_content,
+                    conversation,
+                    generation_config={
+                        "temperature": request.temperature,
+                        "max_output_tokens": request.max_tokens,
+                    },
+                    stream=True,
+                )
+                for chunk in getattr(result, "iter", lambda: [])():
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        yield text
 
 
 # Create a global instance of the LLM service

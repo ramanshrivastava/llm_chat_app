@@ -7,15 +7,13 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import uvicorn
-from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-@dataclass
 class ChatApp:
     """Encapsulates FastAPI application setup."""
 
-    def __post_init__(self) -> None:
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(
             level=getattr(logging, settings.LOG_LEVEL),

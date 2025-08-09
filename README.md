@@ -173,4 +173,37 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - FastAPI for the efficient API framework
 - The open-source community for various libraries and tools used in this project
 
+Architecture:
+
+Project Structure:
+Organized the code into a proper FastAPI application structure with separate modules for API, core, schemas, services, etc.
+Created a clean separation of concerns between different components
+Backend:
+Implemented a FastAPI application with proper routing and error handling
+Created a service to interact with Azure OpenAI API
+Implemented proper schema validation using Pydantic
+Frontend:
+Created a responsive and modern UI for the chat interface
+Implemented dark mode support
+Added code block rendering for code snippets
+Included settings for adjusting model parameters
+Configuration:
+Set up environment variable loading with dotenv
+Created a configuration system using Pydantic settings
+DevOps:
+Added a Dockerfile for containerization
+Set up GitHub Actions for CI/CD
+Created tests for the application
+Documentation:
+Updated the README with comprehensive information about the project
+Added API documentation
+The application is now running in the background on http://localhost:8000. You can access it in your browser to test it out.
+To use the application:
+Make sure you have a valid Azure OpenAI API key in your .env file
+Open http://localhost:8000 in your browser
+Start chatting with the LLM!
+The application supports:
+Adjusting the model (GPT-4, GPT-3.5-turbo)
+Changing the temperature for more creative or deterministic responses
+Setting max tokens for response length
 

@@ -1,12 +1,56 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: llm-chat-app
+  name: llm-chat-app-service
+  labels:
+    app: llm-chat-app
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
 spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
   selector:
     app: llm-chat-app
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8000
-  type: ClusterIP
+  sessionAffinity: None
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: llm-chat-app
+  labels:
+    app: llm-chat-app
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-chat-app-config
+  labels:
+    app: llm-chat-app
+data:
+  ALLOWED_ORIGINS: '["https://yourdomain.com", "https://www.yourdomain.com"]'
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"
+  API_REQUEST_TIMEOUT: "60"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: llm-chat-app-secrets
+  labels:
+    app: llm-chat-app
+type: Opaque
+stringData:
+  LLM_API_KEY: "your-api-key-here"
+  SECRET_KEY: "your-secret-key-here-must-be-at-least-32-characters"
+  LLM_PROVIDER: "openai"
+  LLM_MODEL: "gpt-4"
+  LLM_API_ENDPOINT: "https://api.openai.com/v1"

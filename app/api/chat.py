@@ -1,27 +1,80 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
+from typing import Dict, Any
 import json
-from dataclasses import dataclass, field
 import logging
+import time
 
 from app.schemas.chat import ChatRequest, ChatResponse, Message
 from app.agents.langgraph_agent import langgraph_agent
 from app.services.llm_service import llm_service
+from app.core.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Simple rate limiting store (in production, use Redis)
+_rate_limit_store: Dict[str, Dict[str, Any]] = {}
 
-@dataclass
+def rate_limit_check(request: Request) -> None:
+    """Simple rate limiting based on client IP."""
+    client_ip = request.client.host
+    current_time = time.time()
+    
+    if client_ip not in _rate_limit_store:
+        _rate_limit_store[client_ip] = {"count": 0, "window_start": current_time}
+    
+    client_data = _rate_limit_store[client_ip]
+    
+    # Reset window if expired
+    if current_time - client_data["window_start"] > settings.RATE_LIMIT_WINDOW:
+        client_data["count"] = 0
+        client_data["window_start"] = current_time
+    
+    # Check rate limit
+    if client_data["count"] >= settings.RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please try again later."
+        )
+    
+    client_data["count"] += 1
+
 class ChatController:
-    """Controller handling chat related operations."""
+    """Controller handling chat related operations with improved error handling."""
 
-    agent: any = field(default_factory=lambda: langgraph_agent)
-    service: any = field(default_factory=lambda: llm_service)
+    def __init__(self) -> None:
+        self.agent = langgraph_agent
+        self.service = llm_service
 
     async def generate(self, request: ChatRequest) -> ChatResponse:
         """Generate a chat response using the configured agent."""
-        return await self.agent.invoke(request)
+        try:
+            # Validate input
+            if not request.messages:
+                raise HTTPException(status_code=400, detail="Messages cannot be empty")
+            
+            if len(request.messages) > 50:  # Reasonable limit
+                raise HTTPException(status_code=400, detail="Too many messages in conversation")
+            
+            # Check for excessively long messages
+            for message in request.messages:
+                if len(message.content) > 10000:  # 10k character limit
+                    raise HTTPException(status_code=400, detail="Message content too long")
+            
+            logger.info(f"Generating response for {len(request.messages)} messages")
+            response = await self.agent.invoke(request)
+            logger.info("Response generated successfully")
+            return response
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate response. Please try again."
+            )
 
     async def generate_with_system(
         self,
@@ -31,58 +84,110 @@ class ChatController:
         temperature: float = 0.7,
         max_tokens: int | None = None,
     ) -> ChatResponse:
-        messages = [
-            Message(role="system", content=system_message),
-            Message(role="user", content=user_message),
-        ]
+        """Generate a response with a system message."""
+        try:
+            # Validate inputs
+            if not system_message.strip():
+                raise HTTPException(status_code=400, detail="System message cannot be empty")
+            if not user_message.strip():
+                raise HTTPException(status_code=400, detail="User message cannot be empty")
+            if len(system_message) > 5000:
+                raise HTTPException(status_code=400, detail="System message too long")
+            if len(user_message) > 10000:
+                raise HTTPException(status_code=400, detail="User message too long")
+            
+            messages = [
+                Message(role="system", content=system_message.strip()),
+                Message(role="user", content=user_message.strip()),
+            ]
 
-        request = ChatRequest(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return await self.agent.invoke(request)
-
-    async def stream(self, request: ChatRequest):
-        """Stream a response from the LLM service."""
-
-        async def event_generator():
-            yield (
-                "data: "
-                + json.dumps({"choices": [{"delta": {"role": "assistant"}}]})
-                + "\n\n"
+            request = ChatRequest(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
-            async for chunk in self.service.stream_response(request):
-                data = json.dumps({"choices": [{"delta": {"content": chunk}}]})
-                yield f"data: {data}\n\n"
-            yield "data: [DONE]\n\n"
+            return await self.agent.invoke(request)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error in generate_with_system: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate response with system message"
+            )
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+    async def stream(self, request: ChatRequest) -> StreamingResponse:
+        """Stream a response from the LLM service."""
+        try:
+            # Validate input (similar to generate method)
+            if not request.messages:
+                raise HTTPException(status_code=400, detail="Messages cannot be empty")
+
+            async def event_generator():
+                try:
+                    # Send initial role message
+                    yield (
+                        "data: "
+                        + json.dumps({"choices": [{"delta": {"role": "assistant"}}]})
+                        + "\n\n"
+                    )
+                    
+                    # Stream response chunks
+                    async for chunk in self.service.stream_response(request):
+                        if chunk:  # Only yield non-empty chunks
+                            data = json.dumps({"choices": [{"delta": {"content": chunk}}]})
+                            yield f"data: {data}\n\n"
+                    
+                    # Send completion signal
+                    yield "data: [DONE]\n\n"
+                    
+                except Exception as e:
+                    logger.error(f"Error in stream generator: {str(e)}", exc_info=True)
+                    error_data = json.dumps({
+                        "error": {"message": "Stream interrupted", "type": "server_error"}
+                    })
+                    yield f"data: {error_data}\n\n"
+
+            return StreamingResponse(
+                event_generator(), 
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                }
+            )
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error setting up stream: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to setup response stream"
+            )
 
 
 controller = ChatController()
 
 
 @router.post("/chat", response_model=ChatResponse, summary="Generate a chat response")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, req: Request = None):
     """
     Generate a response from the LLM based on the provided messages.
 
-    - **messages**: List of messages in the conversation
+    - **messages**: List of messages in the conversation (max 50 messages)
     - **model**: (Optional) The model to use for the response
-    - **temperature**: (Optional) The temperature to use for the response
+    - **temperature**: (Optional) The temperature to use for the response (0.0-2.0)
     - **max_tokens**: (Optional) The maximum number of tokens to generate
     - **stream**: (Optional) Whether to stream the response
     """
-    try:
-        response = await controller.generate(request)
-        return response
-    except Exception as e:
-        logger.error(f"Error in chat endpoint: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error generating response: {str(e)}"
-        )
+    # Apply rate limiting
+    if req:
+        rate_limit_check(req)
+    
+    return await controller.generate(request)
 
 
 @router.post(
@@ -96,40 +201,46 @@ async def chat_with_system(
     model: str | None = None,
     temperature: float = 0.7,
     max_tokens: int | None = None,
+    req: Request = None,
 ):
     """
     Generate a response with a system message prepended to the conversation.
 
-    - **system_message**: The system message to prepend
-    - **user_message**: The user message
+    - **system_message**: The system message to prepend (max 5000 characters)
+    - **user_message**: The user message (max 10000 characters)
     - **model**: (Optional) The model to use for the response
-    - **temperature**: (Optional) The temperature to use for the response
+    - **temperature**: (Optional) The temperature to use for the response (0.0-2.0)
     - **max_tokens**: (Optional) The maximum number of tokens to generate
     """
-    try:
-        response = await controller.generate_with_system(
-            system_message,
-            user_message,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return response
-    except Exception as e:
-        logger.error(f"Error in chat_with_system endpoint: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error generating response: {str(e)}"
-        )
+    # Apply rate limiting
+    if req:
+        rate_limit_check(req)
+    
+    # Validate temperature range
+    if not 0.0 <= temperature <= 2.0:
+        raise HTTPException(status_code=400, detail="Temperature must be between 0.0 and 2.0")
+    
+    return await controller.generate_with_system(
+        system_message,
+        user_message,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
 
 
 @router.post("/chat/stream", summary="Stream a chat response")
-async def chat_stream(request: ChatRequest):
-    """Stream tokens from the LLM using OpenAI-compatible SSE."""
-
-    try:
-        return await controller.stream(request)
-    except Exception as e:
-        logger.error(f"Error in chat_stream endpoint: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error generating response: {str(e)}"
-        )
+async def chat_stream(request: ChatRequest, req: Request = None):
+    """
+    Stream tokens from the LLM using OpenAI-compatible Server-Sent Events.
+    
+    - **messages**: List of messages in the conversation (max 50 messages)
+    - **model**: (Optional) The model to use for the response
+    - **temperature**: (Optional) The temperature to use for the response (0.0-2.0)
+    - **max_tokens**: (Optional) The maximum number of tokens to generate
+    """
+    # Apply rate limiting
+    if req:
+        rate_limit_check(req)
+    
+    return await controller.stream(request)

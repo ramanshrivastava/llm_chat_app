@@ -47,7 +47,7 @@ class ChatController:
         self.agent = langgraph_agent
         self.service = llm_service
 
-    async def generate(self, request: ChatRequest) -> ChatResponse:
+    async def generate(self, request: ChatRequest, thread_id: str = "default") -> ChatResponse:
         """Generate a chat response using the configured agent."""
         try:
             # Validate input
@@ -62,9 +62,9 @@ class ChatController:
                 if len(message.content) > 10000:  # 10k character limit
                     raise HTTPException(status_code=400, detail="Message content too long")
             
-            logger.info(f"Generating response for {len(request.messages)} messages")
-            response = await self.agent.invoke(request)
-            logger.info("Response generated successfully")
+            logger.info(f"Generating response for {len(request.messages)} messages, thread: {thread_id}")
+            response = await self.agent.invoke(request, thread_id=thread_id)
+            logger.info(f"Response generated successfully for thread: {thread_id}")
             return response
             
         except HTTPException:
@@ -83,6 +83,7 @@ class ChatController:
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
+        thread_id: str = "default",
     ) -> ChatResponse:
         """Generate a response with a system message."""
         try:
@@ -107,7 +108,7 @@ class ChatController:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            return await self.agent.invoke(request)
+            return await self.agent.invoke(request, thread_id=thread_id)
             
         except HTTPException:
             raise
@@ -182,12 +183,24 @@ async def chat(request: ChatRequest, req: Request = None):
     - **temperature**: (Optional) The temperature to use for the response (0.0-2.0)
     - **max_tokens**: (Optional) The maximum number of tokens to generate
     - **stream**: (Optional) Whether to stream the response
+    
+    Headers:
+    - **X-Thread-ID**: (Optional) Unique thread ID for conversation memory
     """
     # Apply rate limiting
     if req:
         rate_limit_check(req)
     
-    return await controller.generate(request)
+    # Extract thread_id from headers or use client IP as default
+    thread_id = "default"
+    if req:
+        # Try to get from header first
+        thread_id = req.headers.get("X-Thread-ID", None)
+        if not thread_id:
+            # Use client IP as fallback for thread identification
+            thread_id = f"client_{req.client.host}" if req.client else "default"
+    
+    return await controller.generate(request, thread_id=thread_id)
 
 
 @router.post(

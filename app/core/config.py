@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Application settings with proper validation."""
     
     # API Configuration
-    LLM_API_KEY: str = Field(..., description="API key for LLM provider")
+    LLM_API_KEY: str = Field(default="", description="API key for LLM provider")
     LLM_API_ENDPOINT: str = Field(default="https://api.openai.com/v1", description="LLM API endpoint")
     LLM_MODEL: str = Field(default="gpt-4", description="Default LLM model")
     LLM_PROVIDER: str = Field(default="openai", description="LLM provider (openai, anthropic, gemini)")
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     HOST: str = Field(default="0.0.0.0", description="Server host")
     
     # Security
-    SECRET_KEY: str = Field(..., description="Secret key for security features")
+    SECRET_KEY: str = Field(default="development_secret_key_change_in_production_32chars", description="Secret key for security features")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Token expiration time", ge=1)
     ALLOWED_ORIGINS: List[str] = Field(default=["http://localhost:3000", "http://localhost:8000"], description="Allowed CORS origins")
     API_REQUEST_TIMEOUT: int = Field(default=60, description="API request timeout in seconds", ge=1)
@@ -52,14 +52,15 @@ class Settings(BaseSettings):
     
     @validator('LLM_API_KEY')
     def validate_api_key(cls, v):
-        if not v or len(v.strip()) < 10:
-            raise ValueError('LLM_API_KEY must be provided and at least 10 characters long')
-        return v.strip()
+        # Only validate if API key is provided (allow empty for development)
+        if v and len(v.strip()) < 10:
+            raise ValueError('LLM_API_KEY must be at least 10 characters long when provided')
+        return v.strip() if v else ""
     
     @validator('SECRET_KEY')
     def validate_secret_key(cls, v):
-        if not v or len(v.strip()) < 32:
-            raise ValueError('SECRET_KEY must be provided and at least 32 characters long')
+        if len(v.strip()) < 32:
+            raise ValueError('SECRET_KEY must be at least 32 characters long')
         return v.strip()
 
     class Config:

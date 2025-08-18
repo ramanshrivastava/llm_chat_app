@@ -14,7 +14,10 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = Field(default="", description="API key for LLM provider")
     LLM_API_ENDPOINT: str = Field(default="https://api.openai.com/v1", description="LLM API endpoint")
     LLM_MODEL: str = Field(default="gpt-4", description="Default LLM model")
-    LLM_PROVIDER: str = Field(default="openai", description="LLM provider (openai, anthropic, gemini)")
+    LLM_PROVIDER: str = Field(default="openai", description="LLM provider (openai, anthropic, gemini, ollama)")
+    
+    # Ollama Configuration
+    OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL")
     
     # Application Settings
     APP_ENV: str = Field(default="development", description="Application environment")
@@ -38,7 +41,7 @@ class Settings(BaseSettings):
     
     @validator('LLM_PROVIDER')
     def validate_provider(cls, v):
-        allowed_providers = ['openai', 'anthropic', 'gemini']
+        allowed_providers = ['openai', 'anthropic', 'gemini', 'ollama']
         if v.lower() not in allowed_providers:
             raise ValueError(f'Provider must be one of: {allowed_providers}')
         return v.lower()
@@ -51,7 +54,11 @@ class Settings(BaseSettings):
         return v.upper()
     
     @validator('LLM_API_KEY')
-    def validate_api_key(cls, v):
+    def validate_api_key(cls, v, values):
+        # Ollama doesn't require an API key
+        provider = values.get('LLM_PROVIDER', '').lower()
+        if provider == 'ollama':
+            return ""  # No API key needed for Ollama
         # Only validate if API key is provided (allow empty for development)
         if v and len(v.strip()) < 10:
             raise ValueError('LLM_API_KEY must be at least 10 characters long when provided')

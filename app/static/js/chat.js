@@ -47,7 +47,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const loadingDiv = showLoading();
         
         // Get settings
-        const model = modelSelect.value;
+        let model = modelSelect.value;
+        let provider = null;
+        
+        // Check if it's an Ollama model
+        if (model && model.startsWith('ollama:')) {
+            provider = 'ollama';
+            model = model.replace('ollama:', '');  // Remove prefix
+        }
+        
         const temperature = parseFloat(temperatureRange.value);
         const maxTokens = maxTokensInput.value ? parseInt(maxTokensInput.value) : null;
         
@@ -64,7 +72,8 @@ document.addEventListener('DOMContentLoaded', function() {
             model: model || null,
             temperature: temperature,
             max_tokens: maxTokens,
-            stream: true
+            stream: true,
+            provider: provider  // Add provider if Ollama
         };
 
         // Send request to API with streaming response

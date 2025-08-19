@@ -36,9 +36,16 @@ class Settings(BaseSettings):
     # Database Configuration
     DATABASE_URL: Optional[str] = Field(default=None, description="Database URL")
     
+    # Ollama Configuration
+    OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL")
+    
+    # Exa Search Configuration
+    EXA_API_KEY: Optional[str] = Field(default=None, description="Exa API key for web search")
+    EXA_SEARCH_ENABLED: bool = Field(default=False, description="Enable Exa web search for Ollama models")
+    
     @validator('LLM_PROVIDER')
     def validate_provider(cls, v):
-        allowed_providers = ['openai', 'anthropic', 'gemini']
+        allowed_providers = ['openai', 'anthropic', 'gemini', 'ollama']
         if v.lower() not in allowed_providers:
             raise ValueError(f'Provider must be one of: {allowed_providers}')
         return v.lower()
@@ -51,7 +58,10 @@ class Settings(BaseSettings):
         return v.upper()
     
     @validator('LLM_API_KEY')
-    def validate_api_key(cls, v):
+    def validate_api_key(cls, v, values):
+        # Ollama doesn't require an API key
+        if values.get('LLM_PROVIDER', '').lower() == 'ollama':
+            return v.strip() if v else ""
         # Only validate if API key is provided (allow empty for development)
         if v and len(v.strip()) < 10:
             raise ValueError('LLM_API_KEY must be at least 10 characters long when provided')

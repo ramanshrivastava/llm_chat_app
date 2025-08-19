@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const temperatureRange = document.getElementById('temperatureRange');
     const temperatureValue = document.getElementById('temperatureValue');
     const maxTokensInput = document.getElementById('maxTokensInput');
+    const enableSearchCheck = document.getElementById('enableSearchCheck');
+    const searchStatus = document.getElementById('searchStatus');
     
     // Chat state
     let chatHistory = [];
@@ -20,6 +22,41 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update temperature value display
     temperatureRange.addEventListener('input', function() {
         temperatureValue.textContent = this.value;
+    });
+    
+    // Handle model selection changes
+    modelSelect.addEventListener('change', function() {
+        const selectedModel = this.value;
+        // Enable web search for Ollama models that support it
+        if (selectedModel && selectedModel.startsWith('ollama:')) {
+            const modelName = selectedModel.replace('ollama:', '');
+            if (modelName.includes('gpt-oss') || modelName.includes('llama')) {
+                enableSearchCheck.disabled = false;
+                searchStatus.textContent = enableSearchCheck.checked ? 'Ready' : 'Available';
+                searchStatus.className = 'badge bg-success ms-1';
+            } else {
+                enableSearchCheck.disabled = true;
+                enableSearchCheck.checked = false;
+                searchStatus.textContent = 'Not Supported';
+                searchStatus.className = 'badge bg-warning ms-1';
+            }
+        } else {
+            enableSearchCheck.disabled = true;
+            enableSearchCheck.checked = false;
+            searchStatus.textContent = 'Off';
+            searchStatus.className = 'badge bg-secondary ms-1';
+        }
+    });
+    
+    // Handle search toggle
+    enableSearchCheck.addEventListener('change', function() {
+        if (this.checked) {
+            searchStatus.textContent = 'Enabled';
+            searchStatus.className = 'badge bg-primary ms-1';
+        } else {
+            searchStatus.textContent = 'Available';
+            searchStatus.className = 'badge bg-success ms-1';
+        }
     });
     
     // Auto-resize textarea
@@ -51,6 +88,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const temperature = parseFloat(temperatureRange.value);
         const maxTokens = maxTokensInput.value ? parseInt(maxTokensInput.value) : null;
         
+        // Determine provider and actual model name
+        let provider = null;
+        let actualModel = model;
+        if (model && model.startsWith('ollama:')) {
+            provider = 'ollama';
+            actualModel = model.replace('ollama:', '');
+        }
+        
         // Add to chat history
         chatHistory.push({
             role: 'user',
@@ -61,10 +106,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // Prepare request
         const requestBody = {
             messages: chatHistory.map(msg => ({role: msg.role, content: msg.content})),
-            model: model || null,
+            model: actualModel || null,
+            provider: provider,
             temperature: temperature,
             max_tokens: maxTokens,
-            stream: true
+            stream: true,
+            enable_search: enableSearchCheck.checked
         };
 
         // Send request to API with streaming response

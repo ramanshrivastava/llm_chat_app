@@ -12,10 +12,11 @@ class ChatRequest(BaseModel):
     """Schema for a chat request."""
     messages: List[Message] = Field(..., description="The list of messages in the conversation")
     model: Optional[str] = Field(None, description="The model to use for the response")
+    provider: Optional[str] = Field(None, description="The provider to use (openai, anthropic, gemini, ollama)")
     temperature: Optional[float] = Field(0.7, description="The temperature to use for the response", ge=0.0, le=2.0)
     max_tokens: Optional[int] = Field(None, description="The maximum number of tokens to generate")
     stream: Optional[bool] = Field(False, description="Whether to stream the response")
-    provider: Optional[str] = Field(None, description="Override the default provider (e.g., 'ollama' for local models)")
+    enable_search: Optional[bool] = Field(False, description="Enable web search for this request (Ollama only)")
 
 class ChatResponse(BaseModel):
     """Schema for a chat response."""

@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     HTTP_MAX_KEEPALIVE: int = Field(default=20, description="Maximum keep-alive connections", ge=1, le=100)
     HTTP_KEEPALIVE_EXPIRY: int = Field(default=30, description="Keep-alive connection expiry in seconds", ge=5, le=300)
     HTTP_CONNECTION_TIMEOUT: int = Field(default=10, description="Connection timeout in seconds", ge=1, le=60)
+    
+    # Exa Search Configuration
+    EXA_API_KEY: Optional[str] = Field(default=None, description="Exa API key for web search")
+    EXA_SEARCH_ENABLED: bool = Field(default=False, description="Enable Exa web search for Ollama models")
     @validator('LLM_PROVIDER')
     def validate_provider(cls, v):
         allowed_providers = ['openai', 'anthropic', 'gemini', 'ollama']
@@ -63,7 +67,7 @@ class Settings(BaseSettings):
         # Ollama doesn't require an API key
         provider = values.get('LLM_PROVIDER', '').lower()
         if provider == 'ollama':
-            return ""  # No API key needed for Ollama
+            return v.strip() if v else ""  # No API key needed for Ollama
         # Only validate if API key is provided (allow empty for development)
         if v and len(v.strip()) < 10:
             raise ValueError('LLM_API_KEY must be at least 10 characters long when provided')

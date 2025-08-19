@@ -148,7 +148,7 @@
         <div class="settings-panel">
             <div class="settings-title">Chat Settings</div>
             <div class="row">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="modelSelect" class="form-label">Model</label>
                     <select id="modelSelect" class="form-select">
                         <optgroup label="Azure OpenAI (Cloud)">
@@ -162,16 +162,26 @@
                             <option value="ollama:mixtral:8x7b">Mixtral 8x7B 🏠</option>
                             <option value="ollama:deepseek-coder:6.7b">DeepSeek Coder 🏠</option>
                             <option value="ollama:llama3.2:3b">Llama 3.2 3B (Fast) 🏠</option>
+                            <option value="ollama:llama3.2:latest">Llama 3.2 🏠</option>
+                            <option value="ollama:mistral:latest">Mistral 🏠</option>
                         </optgroup>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="temperatureRange" class="form-label">Temperature: <span id="temperatureValue">0.7</span></label>
                     <input type="range" class="form-range" id="temperatureRange" min="0" max="2" step="0.1" value="0.7">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="maxTokensInput" class="form-label">Max Tokens</label>
                     <input type="number" class="form-control" id="maxTokensInput" placeholder="Default">
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" id="enableSearchCheck" disabled>
+                        <label class="form-check-label" for="enableSearchCheck">
+                            🔍 Web Search <span id="searchStatus" class="badge bg-secondary ms-1">Off</span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>

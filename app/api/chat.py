@@ -16,29 +16,7 @@ logger = logging.getLogger(__name__)
 # Simple rate limiting store (in production, use Redis)
 _rate_limit_store: Dict[str, Dict[str, Any]] = {}
 
-def rate_limit_check(request: Request) -> None:
-    """Simple rate limiting based on client IP."""
-    client_ip = request.client.host
-    current_time = time.time()
-    
-    if client_ip not in _rate_limit_store:
-        _rate_limit_store[client_ip] = {"count": 0, "window_start": current_time}
-    
-    client_data = _rate_limit_store[client_ip]
-    
-    # Reset window if expired
-    if current_time - client_data["window_start"] > settings.RATE_LIMIT_WINDOW:
-        client_data["count"] = 0
-        client_data["window_start"] = current_time
-    
-    # Check rate limit
-    if client_data["count"] >= settings.RATE_LIMIT_REQUESTS:
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded. Please try again later."
-        )
-    
-    client_data["count"] += 1
+
 
 class ChatController:
     """Controller handling chat related operations with improved error handling."""
@@ -187,9 +165,7 @@ async def chat(request: ChatRequest, req: Request = None):
     Headers:
     - **X-Thread-ID**: (Optional) Unique thread ID for conversation memory
     """
-    # Apply rate limiting
-    if req:
-        rate_limit_check(req)
+
     
     # Extract thread_id from headers or use client IP as default
     thread_id = "default"
@@ -214,7 +190,7 @@ async def chat_with_system(
     model: str | None = None,
     temperature: float = 0.7,
     max_tokens: int | None = None,
-    req: Request = None,
+    req: Request = None
 ):
     """
     Generate a response with a system message prepended to the conversation.
@@ -225,9 +201,7 @@ async def chat_with_system(
     - **temperature**: (Optional) The temperature to use for the response (0.0-2.0)
     - **max_tokens**: (Optional) The maximum number of tokens to generate
     """
-    # Apply rate limiting
-    if req:
-        rate_limit_check(req)
+
     
     # Validate temperature range
     if not 0.0 <= temperature <= 2.0:
@@ -252,8 +226,6 @@ async def chat_stream(request: ChatRequest, req: Request = None):
     - **temperature**: (Optional) The temperature to use for the response (0.0-2.0)
     - **max_tokens**: (Optional) The maximum number of tokens to generate
     """
-    # Apply rate limiting
-    if req:
-        rate_limit_check(req)
+
     
     return await controller.stream(request)

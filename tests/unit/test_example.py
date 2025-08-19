@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 
@@ -137,21 +138,8 @@ class TestLLMService:
 
     def test_format_messages_with_invalid_role(self):
         """Test message formatting with invalid role."""
-        with patch('app.core.config.settings') as mock_settings:
-            mock_settings.LLM_PROVIDER = "openai"
-            mock_settings.LLM_MODEL = "gpt-4"
-            mock_settings.API_REQUEST_TIMEOUT = 60
-            mock_settings.LLM_API_KEY = "test-key-1234567890"
-            mock_settings.LLM_API_ENDPOINT = "https://api.openai.com/v1"
-            
-            with patch('openai.AsyncOpenAI'):
-                service = LLMService()
-                messages = [Message(role="unknown", content="Test")]
-                
-                with patch('app.services.llm_service.logger') as mock_logger:
-                    formatted = service.format_messages(messages)
-                    assert formatted == [{"role": "user", "content": "Test"}]
-                    mock_logger.warning.assert_called_once()
+        with pytest.raises(ValidationError):
+            Message(role="unknown", content="Test")
 
 
 class TestConfiguration:

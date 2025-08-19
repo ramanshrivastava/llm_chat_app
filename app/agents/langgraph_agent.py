@@ -8,7 +8,6 @@ import logging
 from datetime import datetime
 
 from app.schemas.chat import ChatRequest, ChatResponse, Message
-from app.services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +101,7 @@ class LangGraphAgent:
             if state.get("error"):
                 return {"processing_complete": True}
                 
+            from app.services.llm_service import llm_service
             request = state["request"]
             
             # Generate response

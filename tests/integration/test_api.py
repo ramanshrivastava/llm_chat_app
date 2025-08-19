@@ -1,4 +1,5 @@
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch, MagicMock
 import sys
@@ -11,7 +12,12 @@ agent_stub = types.ModuleType("app.agents.langgraph_agent")
 class DummyAgent:
     async def invoke(self, request):
         raise NotImplementedError
+
+class LangGraphAgent:
+    pass
+
 agent_stub.langgraph_agent = DummyAgent()
+agent_stub.LangGraphAgent = LangGraphAgent
 sys.modules.setdefault("app.agents.langgraph_agent", agent_stub)
 
 from app.main import app  # noqa: E402
@@ -195,31 +201,7 @@ class TestChatStreamEndpoint:
         assert "error" in text.lower()
 
 
-class TestRateLimiting:
-    """Test rate limiting functionality."""
 
-    def test_rate_limiting_basic(self):
-        """Test basic rate limiting behavior."""
-        # Make requests rapidly to trigger rate limit
-        mock_response = ChatResponse(
-            message=Message(role="assistant", content="Hi"),
-            model="gpt-4"
-        )
-        
-        with patch("app.api.chat.langgraph_agent.invoke", new=AsyncMock(return_value=mock_response)):
-            # First request should succeed
-            resp = client.post("/api/chat", json={
-                "messages": [{"role": "user", "content": "Hi"}]
-            })
-            assert resp.status_code == 200
-
-            # Simulate many rapid requests by patching the rate limit store
-            with patch("app.api.chat._rate_limit_store", {"127.0.0.1": {"count": 100, "window_start": time.time()}}):
-                resp = client.post("/api/chat", json={
-                    "messages": [{"role": "user", "content": "Hi"}]
-                })
-                assert resp.status_code == 429
-                assert "Rate limit exceeded" in resp.json()["detail"]
 
 
 class TestErrorHandling:

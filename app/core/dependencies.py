@@ -1,3 +1,4 @@
+from __future__ import annotations
 from functools import lru_cache
 from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, Request
@@ -7,6 +8,7 @@ import logging
 from app.core.config import Settings
 from app.services.llm_service import LLMService
 from app.agents.langgraph_agent import LangGraphAgent
+
 
 logger = logging.getLogger(__name__)
 

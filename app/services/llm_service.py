@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.schemas.chat import Message, ChatRequest, ChatResponse
+from app.utils.client_manager import client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -21,44 +22,23 @@ class LLMService:
     timeout: int = field(default_factory=lambda: settings.API_REQUEST_TIMEOUT)
 
     def __post_init__(self) -> None:
-        """Initialize the LLM client based on the configured provider."""
-        try:
-            if self.provider == "openai":
-                self.client = openai.AsyncOpenAI(
-                    api_key=settings.LLM_API_KEY,
-                    base_url=settings.LLM_API_ENDPOINT,
-                    timeout=self.timeout,
-                )
-            elif self.provider == "anthropic":
-                try:
-                    import anthropic
-                except ImportError as e:
-                    raise ImportError("anthropic package is required for Anthropic provider") from e
-
-                self.client = anthropic.AsyncAnthropic(
-                    api_key=settings.LLM_API_KEY,
-                    timeout=self.timeout
-                )
-            elif self.provider == "gemini":
-                try:
-                    import google.generativeai as genai
-                except ImportError as e:
-                    raise ImportError("google-generativeai package is required for Gemini provider") from e
-
-                genai.configure(api_key=settings.LLM_API_KEY)
-                self.client = genai.GenerativeModel(self.model)
-            elif self.provider == "ollama":
-                # Ollama client is initialized on demand in _handle_ollama_response
-                self.ollama_base_url = settings.OLLAMA_BASE_URL
-                self.client = None  # Will be created when needed
-            else:
-                raise ValueError(f"Unsupported LLM provider: {self.provider}")
-                
-            logger.info(f"Initialized LLM service with provider: {self.provider}")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize LLM service: {str(e)}")
-            raise
+        """Initialize the LLM service with optimized client management."""
+        logger.info(f"Initialized LLM service with provider: {self.provider} (using connection pooling)")
+    
+    def get_client(self, provider: str = None):
+        """Get the appropriate client for the given provider using connection pooling."""
+        provider = provider or self.provider
+        
+        if provider == "openai":
+            return client_manager.get_openai_client()
+        elif provider == "anthropic":
+            return client_manager.get_anthropic_client()
+        elif provider == "gemini":
+            return client_manager.get_gemini_client()
+        elif provider == "ollama":
+            return client_manager.get_ollama_client()
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
     
     def format_messages(self, messages: List[Message]) -> List[Dict[str, str]]:
         """Format messages for the API."""
@@ -79,8 +59,9 @@ class LLMService:
         try:
             model = request.model or self.model
             formatted_messages = self.format_messages(request.messages)
+            client = self.get_client("openai")
 
-            response = await self.client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=model,
                 messages=formatted_messages,
                 temperature=request.temperature,
@@ -118,8 +99,9 @@ class LLMService:
             
             model = request.model or self.model
             formatted_messages = self.format_messages(request.messages)
+            client = self.get_client("anthropic")
 
-            response = await self.client.messages.create(
+            response = await client.messages.create(
                 model=model,
                 messages=formatted_messages,
                 temperature=request.temperature,
@@ -157,11 +139,8 @@ class LLMService:
             model = request.model or self.model
             formatted_messages = self.format_messages(request.messages)
             
-            # Initialize Ollama client
-            if self.ollama_base_url != "http://localhost:11434":
-                ollama_client = ollama.AsyncClient(host=self.ollama_base_url)
-            else:
-                ollama_client = ollama.AsyncClient()
+            # Use persistent Ollama client from client manager
+            ollama_client = self.get_client("ollama")
             
             # Check if web search is enabled and model supports tools
             tools = []
@@ -261,9 +240,10 @@ class LLMService:
         try:
             model = request.model or self.model
             conversation = "\n".join(f"{m.role}: {m.content}" for m in request.messages)
+            client = self.get_client("gemini")
             
-            if hasattr(self.client, "generate_content_async"):
-                result = await self.client.generate_content_async(
+            if hasattr(client, "generate_content_async"):
+                result = await client.generate_content_async(
                     conversation,
                     generation_config={
                         "temperature": request.temperature,
@@ -273,7 +253,7 @@ class LLMService:
                 )
             else:
                 result = await asyncio.to_thread(
-                    self.client.generate_content,
+                    client.generate_content,
                     conversation,
                     generation_config={
                         "temperature": request.temperature,
@@ -319,7 +299,8 @@ class LLMService:
             formatted_messages = self.format_messages(request.messages)
 
             if self.provider == "openai":
-                stream = await self.client.chat.completions.create(
+                client = self.get_client("openai")
+                stream = await client.chat.completions.create(
                     model=model,
                     messages=formatted_messages,
                     temperature=request.temperature,
@@ -333,7 +314,8 @@ class LLMService:
                         
             elif self.provider == "anthropic":
                 import anthropic
-                response = await self.client.messages.create(
+                client = self.get_client("anthropic")
+                response = await client.messages.create(
                     model=model,
                     messages=formatted_messages,
                     temperature=request.temperature,
@@ -346,8 +328,9 @@ class LLMService:
                         
             else:  # gemini
                 conversation = "\n".join(f"{m.role}: {m.content}" for m in request.messages)
-                if hasattr(self.client, "generate_content_async"):
-                    result = await self.client.generate_content_async(
+                client = self.get_client("gemini")
+                if hasattr(client, "generate_content_async"):
+                    result = await client.generate_content_async(
                         conversation,
                         generation_config={
                             "temperature": request.temperature,
@@ -362,7 +345,7 @@ class LLMService:
                 else:
                     # Fallback for non-async Gemini
                     result = await asyncio.to_thread(
-                        self.client.generate_content,
+                        client.generate_content,
                         conversation,
                         generation_config={
                             "temperature": request.temperature,

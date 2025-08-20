@@ -13,6 +13,7 @@ from app.middleware import (
     SecurityMiddleware,
     ErrorHandlerMiddleware
 )
+from app.utils.client_manager import client_manager
 
 # Configure logging
 logging.basicConfig(
@@ -29,17 +30,20 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
+    """Application lifespan manager with connection pool cleanup."""
     logger.info(f"Starting LLM Chat App in {settings.APP_ENV} mode")
     logger.info(f"LLM Provider: {settings.LLM_PROVIDER}")
     
-    # Startup tasks could go here
-    # e.g., initialize database connections, start background tasks
+    # Log connection pool configuration
+    stats = client_manager.get_client_stats()
+    logger.info(f"Connection pool initialized: {stats['connection_pool_config']}")
     
     yield
     
-    # Shutdown tasks
+    # Shutdown tasks - cleanup connection pools
     logger.info("Shutting down LLM Chat App")
+    await client_manager.close_all_clients()
+    logger.info("All HTTP clients closed")
 
 
 def create_application() -> FastAPI:

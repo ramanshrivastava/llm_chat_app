@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Database Configuration
     DATABASE_URL: Optional[str] = Field(default=None, description="Database URL")
     
+    # Connection Pooling Configuration
+    HTTP_MAX_CONNECTIONS: int = Field(default=100, description="Maximum HTTP connections in pool", ge=1, le=500)
+    HTTP_MAX_KEEPALIVE: int = Field(default=20, description="Maximum keep-alive connections", ge=1, le=100)
+    HTTP_KEEPALIVE_EXPIRY: int = Field(default=30, description="Keep-alive connection expiry in seconds", ge=5, le=300)
+    HTTP_CONNECTION_TIMEOUT: int = Field(default=10, description="Connection timeout in seconds", ge=1, le=60)
     @validator('LLM_PROVIDER')
     def validate_provider(cls, v):
         allowed_providers = ['openai', 'anthropic', 'gemini', 'ollama']

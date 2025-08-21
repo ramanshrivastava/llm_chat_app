@@ -133,16 +133,127 @@ class LLMService:
             raise
 
     async def _handle_ollama_response(self, request: ChatRequest) -> ChatResponse:
-        """Handle Ollama API response."""
+        """Handle Ollama API response with optional web search support."""
         try:
             import ollama
+            import json
+            from app.services.search_service import search_service, get_search_tool_definition
             
             model = request.model or self.model
             formatted_messages = self.format_messages(request.messages)
             # Use persistent Ollama client from client manager
             ollama_client = self.get_client("ollama")
             
-            # Call Ollama API
+            # Check if web search is enabled and model supports tools
+            tools = []
+            if request.enable_search and settings.EXA_SEARCH_ENABLED and search_service.enabled:
+                # Only add tools for models that support function calling
+                if "gpt-oss" in model.lower() or "llama" in model.lower():
+                    tools.append(get_search_tool_definition())
+            
+            # Make the API call with or without tools
+            if tools:
+                response = await ollama_client.chat(
+                    model=model,
+                    messages=formatted_messages,
+                    tools=tools,
+                    options={
+                        "temperature": request.temperature,
+                        "num_predict": request.max_tokens or -1,
+                    },
+                    stream=False
+                )
+                
+                # Check if the model wants to use tools
+                if response.get('message', {}).get('tool_calls'):
+                    tool_results = []
+                    for tool_call in response['message']['tool_calls']:
+                        if tool_call.get('function', {}).get('name') == "web_search":
+                            # Execute web search
+                            args = tool_call['function'].get('arguments', {})
+                            if isinstance(args, str):
+                                args = json.loads(args)
+                            
+                            search_results = await search_service.search(
+                                query=args.get("query", ""),
+                                num_results=args.get("num_results", 5),
+                                category=args.get("category"),
+                                include_domains=args.get("include_domains"),
+                                exclude_domains=args.get("exclude_domains")
+                            )
+                            
+                            # Format results for context
+                            search_context = search_service.format_for_llm(search_results)
+                            tool_results.append(search_context)
+                    
+                    # If tools were called, make another request with the results
+                    if tool_results:
+                        # Add tool results to messages
+                        formatted_messages.append({
+                            "role": "assistant",
+                            "content": response['message'].get('content', '')
+                        })
+                        formatted_messages.append({
+                            "role": "user",
+                            "content": "Search Results:\n" + "\n".join(tool_results)
+                        })
+                        
+                        # Get final response with search context
+                        response = await ollama_client.chat(
+                            model=model,
+                            messages=formatted_messages,
+                            options={
+                                "temperature": request.temperature,
+                                "num_predict": request.max_tokens or -1,
+                            },
+                            stream=False
+                        )
+            else:
+                # Standard call without tools
+                response = await ollama_client.chat(
+                    model=model,
+                    messages=formatted_messages,
+                    options={
+                        "temperature": request.temperature,
+                        "num_predict": request.max_tokens or -1,
+                    },
+                    stream=False
+                )
+            
+            # Extract content from response
+            content = response.get('message', {}).get('content', '')
+            
+            # Create usage info if available
+            usage = {}
+            if 'eval_count' in response:
+                usage['completion_tokens'] = response['eval_count']
+            if 'prompt_eval_count' in response:
+                usage['prompt_tokens'] = response['prompt_eval_count']
+            if usage:
+                usage['total_tokens'] = usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
+            
+            assistant_message = Message(role="assistant", content=content)
+            return ChatResponse(message=assistant_message, model=model, usage=usage)
+            
+        except ImportError as e:
+            if "search_service" in str(e):
+                logger.warning("Search service not available, falling back to standard response")
+                # Fall back to standard Ollama response without search
+                return await self._handle_ollama_response_without_search(request)
+            raise
+        except Exception as e:
+            logger.error(f"Ollama API error: {str(e)}")
+            raise Exception(f"Ollama API error: {str(e)}")
+    
+    async def _handle_ollama_response_without_search(self, request: ChatRequest) -> ChatResponse:
+        """Fallback Ollama handler without search capabilities."""
+        try:
+            import ollama
+            
+            model = request.model or self.model
+            formatted_messages = self.format_messages(request.messages)
+            ollama_client = self.get_client("ollama")
+            
             response = await ollama_client.chat(
                 model=model,
                 messages=formatted_messages,
@@ -153,10 +264,7 @@ class LLMService:
                 stream=False
             )
             
-            # Extract content from response
             content = response.get('message', {}).get('content', '')
-            
-            # Create usage info if available
             usage = {}
             if 'eval_count' in response:
                 usage['completion_tokens'] = response['eval_count']

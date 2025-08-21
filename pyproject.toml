@@ -18,7 +18,8 @@ dependencies = [
     "langgraph>=0.5.1",
     "aiohttp>=3.9.0",
     "sqlalchemy>=2.0.41",
-    "ollama>=0.1.0",
+    "ollama>=0.1.7",
+    "exa-py>=1.0.0",
 ]
 
 [project.optional-dependencies]

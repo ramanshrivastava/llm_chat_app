@@ -106,12 +106,13 @@ class TestLLMService:
             mock_settings.API_REQUEST_TIMEOUT = 60
             mock_settings.LLM_API_KEY = "test-key-1234567890"
             mock_settings.LLM_API_ENDPOINT = "https://api.openai.com/v1"
+            mock_settings.OLLAMA_BASE_URL = "http://localhost:11434"
             
-            with patch('openai.AsyncOpenAI') as mock_openai:
-                service = LLMService()
-                assert service.provider == "openai"
-                assert service.model == "gpt-4"
-                mock_openai.assert_called_once()
+            service = LLMService()
+            assert service.provider == "openai"
+            assert service.model == "gpt-4"
+            assert service.timeout == 60
+            # No longer test for client creation as it's done lazily via ClientManager
 
     def test_format_messages(self):
         """Test message formatting."""
@@ -121,20 +122,20 @@ class TestLLMService:
             mock_settings.API_REQUEST_TIMEOUT = 60
             mock_settings.LLM_API_KEY = "test-key-1234567890"
             mock_settings.LLM_API_ENDPOINT = "https://api.openai.com/v1"
+            mock_settings.OLLAMA_BASE_URL = "http://localhost:11434"
             
-            with patch('openai.AsyncOpenAI'):
-                service = LLMService()
-                messages = [
-                    Message(role="user", content="Hello"),
-                    Message(role="assistant", content="Hi there!"),
-                ]
-                formatted = service.format_messages(messages)
-                
-                expected = [
-                    {"role": "user", "content": "Hello"},
-                    {"role": "assistant", "content": "Hi there!"},
-                ]
-                assert formatted == expected
+            service = LLMService()
+            messages = [
+                Message(role="user", content="Hello"),
+                Message(role="assistant", content="Hi there!"),
+            ]
+            formatted = service.format_messages(messages)
+            
+            expected = [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
+            ]
+            assert formatted == expected
 
     def test_format_messages_with_invalid_role(self):
         """Test message formatting with invalid role."""
